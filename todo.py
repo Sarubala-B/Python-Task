@@ -24,7 +24,7 @@ def load_tasks():
 
 def save_tasks(tasks):
     with open(TODO_FILE, "w") as file:
-        json.dump(tasks, file, indent=4)  # Save with indentation for readability
+        json.dump(tasks, file, indent=4)  
 
 
 def get_next_task_id(tasks):
@@ -42,7 +42,7 @@ def validate_input(prompt):
 
 
 def add_task():
-    tasks = load_tasks()  # Load existing tasks
+    tasks = load_tasks()  
     
     while True:
         taskname = validate_input("Task Name: ")
@@ -58,18 +58,18 @@ def add_task():
         "taskid": task_id,
         "taskname": taskname,
         "description": description,
-        "status": 0  # Initially Pending (0)
+        "status": 0  
     }
-    save_tasks(tasks)  # Save updated tasks
+    save_tasks(tasks)  
     print(f"\n Task '{taskname}' added with Task ID {task_id}.\n")
 
 
 # def view_tasks():
 #     tasks = load_tasks()
 #     if tasks:
-#         task_list = list(tasks.values())  # Convert dictionary values to list
+#         task_list = list(tasks.values())  
 #         print("\n Task List:\n")
-#         print(json.dumps(task_list, indent=4))  # Print in required format
+#         print(json.dumps(task_list, indent=4))  
 #     else:
 #         print("\n No tasks available.\n")
 
@@ -143,8 +143,8 @@ def delete_task():
 
     confirmation = input(f"Are you sure you want to delete Task ID {task_id}? (yes/no): ").strip().lower()
     if confirmation == "yes":
-        del tasks[task_id]  # Delete the task from dictionary
-        save_tasks(tasks)  # Save updated tasks
+        del tasks[task_id]  
+        save_tasks(tasks)  
         print(f"\n Task ID {task_id} deleted successfully.\n")
     else:
         print("\n Task deletion canceled.\n")
@@ -156,7 +156,7 @@ def main():
         print("1. Add Task")
         print("2. View Tasks")
         print("3. Update Task Status")
-        print("4. Delete Task")  # Added delete option
+        print("4. Delete Task") 
         print("5. Exit")
         choice = input("Enter your choice: ").strip()
 
@@ -167,7 +167,7 @@ def main():
         elif choice == "3":
             update_task_status()
         elif choice == "4":
-            delete_task()  # Call delete function
+            delete_task()  
         elif choice == "5":
             print("\n Exiting the program. Have a great day!\n")
             break
