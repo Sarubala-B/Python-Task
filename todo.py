@@ -1,5 +1,6 @@
 import json
 import os
+from tabulate import tabulate
 
 # File to store tasks
 TODO_FILE = "tasks.json"
@@ -63,15 +64,32 @@ def add_task():
     print(f"\n Task '{taskname}' added with Task ID {task_id}.\n")
 
 
+# def view_tasks():
+#     tasks = load_tasks()
+#     if tasks:
+#         task_list = list(tasks.values())  # Convert dictionary values to list
+#         print("\n Task List:\n")
+#         print(json.dumps(task_list, indent=4))  # Print in required format
+#     else:
+#         print("\n No tasks available.\n")
 
 def view_tasks():
     tasks = load_tasks()
-    if tasks:
-        task_list = list(tasks.values())  # Convert dictionary values to list
-        print("\n Task List:\n")
-        print(json.dumps(task_list, indent=4))  # Print in required format
-    else:
+    if not tasks:
         print("\n No tasks available.\n")
+        return
+    
+    # print("\nTask List:\n")
+    # for task in tasks.values():
+    #     print(f"Task ID    : {task['taskid']}")
+    #     print(f"Task Name  : {task['taskname']}")
+    #     print(f"Description: {task['description']}")
+    #     print(f"Status     : {STATUS_CODES[task['status']]}")
+    #     print("-" * 50)
+    table_data = [[task["taskid"], task["taskname"], task["description"], STATUS_CODES[task["status"]]] for task in tasks.values()]
+    
+    print("\n" + tabulate(table_data, headers=["Task ID", "Task Name", "Description", "Status"], tablefmt="grid"))
+
 
 
 def update_task_status():
@@ -94,12 +112,21 @@ def update_task_status():
             print("\n Invalid status code! Please enter 0, 1, or 2.\n")
             return
 
+        # Update task status
         tasks[task_id]["status"] = new_status
         save_tasks(tasks)
-        print(f"\n Task ID {task_id} status updated to '{STATUS_CODES[new_status]}'.\n")
+
+        # Print updated task details
+        updated_task = tasks[task_id]
+        print("\n Task Updated Successfully:")
+        print(f"Task ID    : {updated_task['taskid']}")
+        print(f"Task Name  : {updated_task['taskname']}")
+        print(f"Description: {updated_task['description']}")
+        print(f"Status     : {STATUS_CODES[new_status]}\n")
 
     except ValueError:
         print("\n Invalid input! Please enter a number (0-2).\n")
+
 
 
 def delete_task():
