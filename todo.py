@@ -78,14 +78,6 @@ def view_tasks():
     if not tasks:
         print("\n No tasks available.\n")
         return
-    
-    # print("\nTask List:\n")
-    # for task in tasks.values():
-    #     print(f"Task ID    : {task['taskid']}")
-    #     print(f"Task Name  : {task['taskname']}")
-    #     print(f"Description: {task['description']}")
-    #     print(f"Status     : {STATUS_CODES[task['status']]}")
-    #     print("-" * 50)
     table_data = [[task["taskid"], task["taskname"], task["description"], STATUS_CODES[task["status"]]] for task in tasks.values()]
     
     print("\n" + tabulate(table_data, headers=["Task ID", "Task Name", "Description", "Status"], tablefmt="grid"))
