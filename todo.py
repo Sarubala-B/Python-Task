@@ -1,172 +1,238 @@
 import json
 import os
+import re
 from tabulate import tabulate
+from dataclasses import dataclass
 
-# File to store tasks
-TODO_FILE = "tasks.json"
-
-STATUS_CODES = {
-    0: "Pending",
-    1: "In Progress",
-    2: "Completed"
-}
-
-def load_tasks():
-    if not os.path.exists(TODO_FILE):  
-        return {}  # Return empty dictionary if file doesn't exist
-    try:
-        with open(TODO_FILE, "r") as file:
-            tasks = json.load(file)
-            return tasks if isinstance(tasks, dict) else {}  # Ensure data is a dictionary
-    except (json.JSONDecodeError, ValueError):
-        return {}  # Return empty dictionary if file is corrupted
-    
-
-def save_tasks(tasks):
-    with open(TODO_FILE, "w") as file:
-        json.dump(tasks, file, indent=4)  
+# Directory to store task files
+DATA_FOLDER = "data"
+TODO_FILE = os.path.join(DATA_FOLDER, "tasks.json")
 
 
-def get_next_task_id(tasks):
-    if tasks:
-        return max(map(int, tasks.keys())) + 1  # Get max ID and increment
-    return 1
+@dataclass(frozen=True)
+class TaskStatus:
+    PENDING: int = 0
+    IN_PROGRESS: int = 1
+    COMPLETED: int = 2
+
+    @staticmethod
+    def get_status_name(code: int) -> str:
+        status_map = {
+            None: "Not Assigned",  # If the status is None, show "Not Assigned"
+            TaskStatus.PENDING: "Pending",
+            TaskStatus.IN_PROGRESS: "In Progress",
+            TaskStatus.COMPLETED: "Completed"
+        }
+        return status_map.get(code, "Unknown Status")
 
 
-def validate_input(prompt):
-    while True:
-        value = input(prompt).strip()
-        if value:
+
+class FileHandler:
+    @staticmethod
+    def ensure_folder_exists():
+        if not os.path.exists(DATA_FOLDER):
+            os.makedirs(DATA_FOLDER)
+
+    @staticmethod
+    def load_tasks(filename):
+        FileHandler.ensure_folder_exists()  # Ensure folder exists before accessing the file
+        if not os.path.exists(filename):
+            return []
+        try:
+            with open(filename, "r") as file:
+                tasks = json.load(file)
+                return tasks if isinstance(tasks, list) else []
+        except (json.JSONDecodeError, ValueError):
+            return []
+
+    @staticmethod
+    def save_tasks(filename, tasks):
+        FileHandler.ensure_folder_exists()  # Ensure folder exists before writing
+        with open(filename, "w") as file:
+            json.dump(tasks, file, indent=4)
+
+
+class TaskValidator:
+    @staticmethod
+    def validate_input(prompt, is_taskname=False, is_description=False):
+        while True:
+            value = input(prompt).strip()
+            if not value:
+                print("Input cannot be empty. Please enter a valid value.")
+                continue
+
+            if is_taskname and not re.match(r"^[A-Za-z0-9 ]{1,20}$", value):
+                print("Error: Task name can only contain letters, numbers, and spaces (max 20 characters).")
+                continue
+
+            if is_description and not re.search(r"[A-Za-z0-9]", value):
+                print("Error: Description must contain at least one letter or number.")
+                continue
             return value
-        print("Input cannot be empty. Please enter a valid value.")
 
 
-def add_task():
-    tasks = load_tasks()  
-    
-    while True:
-        taskname = validate_input("Task Name: ")
-        if any(task["taskname"].lower() == taskname.lower() for task in tasks.values()):
-            print("\n Error: Task name already exists. Please enter a different task name.\n")
-        else:
-            break  # Exit loop if task name is unique
+class TaskManager:
+    def __init__(self, filename=TODO_FILE):
+        self.filename = filename
+        self.tasks = FileHandler.load_tasks(self.filename)
 
-    description = validate_input("Description: ")
+    def save_tasks(self):
+        FileHandler.save_tasks(self.filename, self.tasks)
 
-    task_id = get_next_task_id(tasks)  # Generate new task ID
-    tasks[str(task_id)] = {  # Store task with ID as key
-        "taskid": task_id,
-        "taskname": taskname,
-        "description": description,
-        "status": 0  
-    }
-    save_tasks(tasks)  
-    print(f"\n Task '{taskname}' added with Task ID {task_id}.\n")
+    def get_next_task_id(self):
+        return max([task["taskid"] for task in self.tasks], default=0) + 1
 
+    def add_task(self):
+        taskname = TaskValidator.validate_input("Task Name: ", is_taskname=True)
+        description = TaskValidator.validate_input("Description: ", is_description=True)
+        task_id = self.get_next_task_id()
 
-# def view_tasks():
-#     tasks = load_tasks()
-#     if tasks:
-#         task_list = list(tasks.values())  
-#         print("\n Task List:\n")
-#         print(json.dumps(task_list, indent=4))  
-#     else:
-#         print("\n No tasks available.\n")
+        self.tasks.append({
+            "taskid": task_id,
+            "taskname": taskname,
+            "description": description,
+             "status": None
+        })
+        self.save_tasks()
+        print(f"\nTask '{taskname}' added with Task ID {task_id}.\n")
 
-def view_tasks():
-    tasks = load_tasks()
-    if not tasks:
-        print("\n No tasks available.\n")
-        return
-    table_data = [[task["taskid"], task["taskname"], task["description"], STATUS_CODES[task["status"]]] for task in tasks.values()]
-    
-    print("\n" + tabulate(table_data, headers=["Task ID", "Task Name", "Description", "Status"], tablefmt="grid"))
-
-
-
-def update_task_status():
-    tasks = load_tasks()
-    if not tasks:
-        print("\n No tasks available to update.\n")
-        return
-    try:
-        task_id = input("Enter Task ID to update status: ").strip()
-        if task_id not in tasks:
-            print("\n Task ID not found.\n")
+    def view_all_tasks(self):
+        if not self.tasks:
+            print("\nNo tasks available.\n")
             return
+
+        print("\n Overall Task List:\n")
+        table_data = [
+            [task["taskid"], task["taskname"], task["description"], TaskStatus.get_status_name(task["status"])]
+            for task in self.tasks
+        ]
+        print(tabulate(table_data, headers=["Task ID", "Task Name", "Description", "Status"], tablefmt="grid"))
+        print("\n" + "=" * 50 + "\n")
+
+    def view_tasks_by_name(self):
+        if not self.tasks:
+            print("\nNo tasks available.\n")
+            return
+
+        task_name_groups = {}
+        for task in self.tasks:
+            task_name_groups.setdefault(task["taskname"], []).append(task)
+
+        print("\n Tasks Grouped by Task Name:\n")
+        for taskname, tasks in task_name_groups.items():
+            print(f"🔹 Task Name: '{taskname}'")
+            table_data = [
+                [task["taskid"], task["description"], TaskStatus.get_status_name(task["status"])]
+                for task in tasks
+            ]
+            print(tabulate(table_data, headers=["Task ID", "Description", "Status"], tablefmt="grid"))
+            print("\n" + "=" * 50 + "\n")
+
+    def view_tasks_by_status(self):
+        if not self.tasks:
+            print("\nNo tasks available.\n")
+            return
+
+        status_groups = {}
+        for task in self.tasks:
+            status_groups.setdefault(task["status"], []).append(task)
+
+        print("\n Tasks Grouped by Status:\n")
+        for status, tasks in status_groups.items():
+            print(f"🔹 Status: '{TaskStatus.get_status_name(status)}'")
+            table_data = [
+                [task["taskid"], task["taskname"], task["description"]]
+                for task in tasks
+            ]
+            print(tabulate(table_data, headers=["Task ID", "Task Name", "Description"], tablefmt="grid"))
+            print("\n" + "=" * 50 + "\n")
+
+    def update_task(self):
+        if not self.tasks:
+            print("\nNo tasks available to update.\n")
+            return
+
+        try:
+            task_id = int(input("Enter Task ID to update: ").strip())
+        except ValueError:
+            print("\nInvalid Task ID. Please enter a valid number.\n")
+            return
+
+        task = next((t for t in self.tasks if t["taskid"] == task_id), None)
+        if not task:
+            print("\nTask ID not found.\n")
+            return
+
+        new_taskname = input("Enter new task name (leave empty to keep current name): ").strip()
+        if new_taskname:
+            task["taskname"] = new_taskname
+
+        new_description = input("Enter new description (leave empty to keep current description): ").strip()
+        if new_description:
+            task["description"] = new_description
 
         print("\nSelect new status:")
-        for code, status in STATUS_CODES.items():
-            print(f"{code}: {status}")
-        
-        new_status = int(input("Enter status code (0-2): ").strip())
-        if new_status not in STATUS_CODES:
-            print("\n Invalid status code! Please enter 0, 1, or 2.\n")
+        for status_code in [TaskStatus.PENDING, TaskStatus.IN_PROGRESS, TaskStatus.COMPLETED]:
+            print(f"{status_code}: {TaskStatus.get_status_name(status_code)}")
+
+        try:
+            new_status = int(input("Enter status code (0-2): ").strip())
+            if new_status in [TaskStatus.PENDING, TaskStatus.IN_PROGRESS, TaskStatus.COMPLETED]:
+                task["status"] = new_status
+                self.save_tasks()
+                print("\nTask Updated Successfully.\n")
+            else:
+                print("\nInvalid status code! Please enter 0, 1, or 2.\n")
+        except ValueError:
+            print("\nInvalid input! Please enter a number (0-2).\n")
+
+    def delete_task(self):
+        if not self.tasks:
+            print("\nNo tasks available to delete.\n")
             return
 
-        # Update task status
-        tasks[task_id]["status"] = new_status
-        save_tasks(tasks)
+        try:
+            task_id = int(input("Enter Task ID to delete: ").strip())
+        except ValueError:
+            print("\nInvalid Task ID. Please enter a valid number.\n")
+            return
 
-        # Print updated task details
-        updated_task = tasks[task_id]
-        print("\n Task Updated Successfully:")
-        print(f"Task ID    : {updated_task['taskid']}")
-        print(f"Task Name  : {updated_task['taskname']}")
-        print(f"Description: {updated_task['description']}")
-        print(f"Status     : {STATUS_CODES[new_status]}\n")
+        task = next((t for t in self.tasks if t["taskid"] == task_id), None)
+        if not task:
+            print("\nTask ID not found.\n")
+            return
 
-    except ValueError:
-        print("\n Invalid input! Please enter a number (0-2).\n")
+        if task["status"] != TaskStatus.COMPLETED:
+            print("\nTask cannot be deleted because it is not completed.\n")
+            return
 
-
-
-def delete_task():
-    tasks = load_tasks()
-    if not tasks:
-        print("\n No tasks available to delete.\n")
-        return
-
-    task_id = input("Enter Task ID to delete: ").strip()
-    
-    if task_id not in tasks:
-        print("\n Task ID not found.\n")
-        return
-
-    confirmation = input(f"Are you sure you want to delete Task ID {task_id}? (yes/no): ").strip().lower()
-    if confirmation == "yes":
-        del tasks[task_id]  
-        save_tasks(tasks)  
-        print(f"\n Task ID {task_id} deleted successfully.\n")
-    else:
-        print("\n Task deletion canceled.\n")
+        self.tasks.remove(task)
+        self.save_tasks()
+        print(f"\nTask ID {task_id} deleted successfully.\n")
 
 
-def main():
-    while True:
-        print("\n To-Do List Menu")
-        print("1. Add Task")
-        print("2. View Tasks")
-        print("3. Update Task Status")
-        print("4. Delete Task") 
-        print("5. Exit")
-        choice = input("Enter your choice: ").strip()
+class ToDoApp:
+    def __init__(self):
+        self.task_manager = TaskManager()
 
-        if choice == "1":
-            add_task()
-        elif choice == "2":
-            view_tasks()
-        elif choice == "3":
-            update_task_status()
-        elif choice == "4":
-            delete_task()  
-        elif choice == "5":
-            print("\n Exiting the program. Have a great day!\n")
-            break
-        else:
-            print("\n Invalid choice! Please enter a valid option (1-5).\n")
+    def main(self):
+        options = {
+            "1": self.task_manager.add_task,
+            "2": self.task_manager.view_all_tasks,
+            "3": self.task_manager.view_tasks_by_name,
+            "4": self.task_manager.view_tasks_by_status,
+            "5": self.task_manager.update_task,
+            "6": self.task_manager.delete_task,
+            "7": lambda: exit("\nExiting the program. Have a great day!\n")
+        }
+
+        while True:
+            print("\nTo-Do List Menu")
+            for k, v in options.items():
+                print(f"{k}. {v.__name__.replace('_', ' ').title()}")
+            choice = input("Enter your choice: ").strip()
+            options.get(choice, lambda: print("\nInvalid choice!"))()
 
 
-# Run the program
 if __name__ == "__main__":
-    main()
+    ToDoApp().main()
